@@ -262,7 +262,7 @@ export function generateMuseumCardHtml(entry: MuseumEntry): string {
 
   const badgeInner = '<i class="material-icons" style="font-size:14px">history</i> Post Rescatado';
   const badgeHtml = entry.originalUrl
-    ? `<a class="badge" href="${entry.originalUrl}" target="_blank" rel="noopener noreferrer">${badgeInner}</a>`
+    ? `<a class="badge" href="${entry.originalUrl}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center">${badgeInner}</a>`
     : `<div class="badge">${badgeInner}</div>`;
 
   return `<div class="museum-card" style="--percent: ${nostalgia}%; --humo: ${smoke}%;">
