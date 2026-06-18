@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { parseAtomXml, detectIssues, cleanContent } from '@/lib/atom-parser';
+import { parseAtomXml, detectIssues, detectPlatforms, calculateNostalgiaScore, calculateSmokeIndex } from '@/lib/atom-parser';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
     // Prepare all entries data before touching the database
     const entriesToCreate = result.entries.map(entry => {
       const issues = detectIssues(entry.content, entry.title, entry.entryType);
+      const platforms = detectPlatforms(entry.content);
+      const nostalgiaScore = calculateNostalgiaScore(entry.publishedAt, platforms);
+      const smokeIndex = calculateSmokeIndex(platforms, issues);
       return {
         entryId: entry.entryId,
         entryType: entry.entryType,
@@ -67,6 +70,9 @@ export async function POST(request: NextRequest) {
           .filter(w => w.length > 0).length,
         commentCount: entry.commentCount,
         parentId: entry.parentId,
+        platforms: JSON.stringify(platforms.map(p => p.name)),
+        nostalgiaScore,
+        smokeIndex,
       };
     });
 

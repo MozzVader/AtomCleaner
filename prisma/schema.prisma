@@ -20,9 +20,12 @@ model BlogEntry {
   originalUrl  String?  // <link rel="alternate"> href
   status       String   @default("pending") // pending | approved | discarded | needs_editing
   issues       String   @default("[]") // JSON array of issue objects {type, message}
-  wordCount    Int      @default(0)
-  commentCount Int      @default(0)
-  parentId     String?  // For comments: the parent post's entryId
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  wordCount      Int      @default(0)
+  commentCount   Int      @default(0)
+  parentId       String?  // For comments: the parent post's entryId
+  platforms      String   @default("[]") // JSON array of detected platform names
+  nostalgiaScore Int      @default(0) // 0-100 nostalgia score
+  smokeIndex     Int      @default(0) // 0-100 smoke index (baseline, before manual edits)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
