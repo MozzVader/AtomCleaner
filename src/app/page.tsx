@@ -98,6 +98,8 @@ function UploadView() {
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [debugResult, setDebugResult] = React.useState<Record<string, unknown> | null>(null);
   const [showDebug, setShowDebug] = React.useState(false);
+  const [showParseTest, setShowParseTest] = React.useState(false);
+  const [parseTestResult, setParseTestResult] = React.useState<Record<string, unknown> | null>(null);
 
   const processFile = async (file: File) => {
     if (!file.name.endsWith('.atom') && !file.name.endsWith('.xml')) {
@@ -150,6 +152,25 @@ function UploadView() {
     if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
   }, []);
 
+  const processParseTestFile = async (file: File) => {
+    if (!file.name.endsWith('.atom') && !file.name.endsWith('.xml')) {
+      toast({ title: 'Formato inválido', description: 'Solo .atom o .xml', variant: 'destructive' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/parse-test', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setParseTestResult(data);
+      setShowParseTest(true);
+      toast({ title: 'Test de parser completado' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
+    }
+  };
+
   const pickFile = (onSelect: (f: File) => void) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -201,8 +222,20 @@ function UploadView() {
           )}
         </div>
 
-        {/* Debug button */}
-        <div className="mt-4 flex justify-center">
+        {/* Debug buttons */}
+        <div className="mt-4 flex justify-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              pickFile(processParseTestFile);
+            }}
+          >
+            <FileJson className="h-3 w-3 mr-1" />
+            Test Parser (parseAtomXml real)
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -213,9 +246,24 @@ function UploadView() {
             }}
           >
             <Search className="h-3 w-3 mr-1" />
-            Diagnosticar estructura del XML (sin importar)
+            Diagnosticar XML crudo
           </Button>
         </div>
+
+        {/* Parse test output */}
+        {showParseTest && parseTestResult && (
+          <div className="mt-4 rounded-lg border border-green-300 bg-green-50/50 dark:bg-green-950/20 p-4 text-xs font-mono max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-green-700 dark:text-green-400">Resultado del Parser Real (parseAtomXml)</span>
+              <button onClick={() => setShowParseTest(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-all text-[11px] leading-relaxed">
+              {JSON.stringify(parseTestResult, null, 2)}
+            </pre>
+          </div>
+        )}
 
         {/* Debug output */}
         {showDebug && debugResult && (

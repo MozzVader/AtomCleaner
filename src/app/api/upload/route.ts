@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { parseAtomXml, detectIssues, cleanContent } from '@/lib/atom-parser';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -23,14 +25,25 @@ export async function POST(request: NextRequest) {
 
     const xmlString = await file.text();
 
+    console.log(`[UPLOAD] File: ${file.name}, Size: ${file.size}, XML length: ${xmlString.length}`);
+    console.log(`[UPLOAD] First 300 chars: ${xmlString.substring(0, 300)}`);
+
     // Parse the Atom XML
     let result;
     try {
       result = parseAtomXml(xmlString);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al parsear el XML';
+      console.error('[UPLOAD] Parse error:', msg);
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
+    // Log parse results
+    const withTitle = result.entries.filter(e => e.title && e.title.trim().length > 0).length;
+    console.log(`[UPLOAD] Parsed: ${result.entries.length} entries, ${withTitle} with title, strategy: ${result.debugInfo.parseStrategy}`);
+    console.log(`[UPLOAD] Debug info:`, JSON.stringify(result.debugInfo));
+    console.log(`[UPLOAD] First 3 titles:`, result.entries.slice(0, 3).map(e => `"${e.title}" (${e.entryType})`));
+    console.log(`[UPLOAD] Skipped:`, JSON.stringify(result.skippedTypes));
 
     // Clear previous data for a fresh import
     await db.blogEntry.deleteMany({});
@@ -65,7 +78,9 @@ export async function POST(request: NextRequest) {
       storedCount++;
     }
 
-    return NextResponse.json({
+    console.log(`[UPLOAD] Stored ${storedCount} entries in DB`);
+
+    const response = NextResponse.json({
       success: true,
       blogTitle: result.blogTitle,
       blogAuthor: result.blogAuthor,
@@ -79,9 +94,16 @@ export async function POST(request: NextRequest) {
         COMMENT: result.entries.filter(e => e.entryType === 'COMMENT').length,
       },
       debugInfo: result.debugInfo,
+      _firstTitles: result.entries.slice(0, 5).map(e => e.title || '(sin título)'),
     });
+
+    // Add no-cache headers
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+
+    return response;
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('[UPLOAD] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Error interno del servidor' },
       { status: 500 }
