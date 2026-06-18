@@ -197,17 +197,67 @@ export function generateMuseumCardHtml(entry: MuseumEntry): string {
     ? new Date(entry.publishedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
     : 'Fecha desconocida';
 
-  const platformTags = platforms.length > 0
-    ? platforms.map(p => `<span class="platform-tag">${p}</span>`).join('\n                    ')
-    : '';
+  // ── Smart platform tags ──────────────────────────────────
+  // Always show at least one tag for consistency.
+  // Priority: detected platforms > content-based fallback.
+  let platformTags: string;
+  if (platforms.length > 0) {
+    // Lowercase for tag display
+    const displayNames = platforms.map(p => {
+      const lower = p.toLowerCase();
+      // Keep specific recognized names, lowercase for tag
+      return lower;
+    });
+    platformTags = displayNames.map(p => `<span class="platform-tag">${p}</span>`).join('\n                    ');
+  } else {
+    // Fallback: infer from content
+    const fallbackTags: string[] = [];
+    const rawContent = entry.content || '';
 
+    // Detect YouTube
+    if (/youtube\.com|youtu\.be/i.test(rawContent)) {
+      fallbackTags.push('youtube');
+    }
+    // Detect images (Blogger imageanchor or any img tag)
+    if (/<img[^>]+src=/i.test(rawContent) || /<a[^>]+imageanchor/i.test(rawContent)) {
+      fallbackTags.push('imagenes');
+    }
+    // Extract the first "real" external link (not image hosting) as a tag
+    const EXCLUDED_DOMAINS = /blogger\.googleusercontent\.com|googleusercontent\.com|bp\.blogspot\.com|[01]\.bp\.blogspot\.com|picasaweb\.google\.com|ggpht\.com|lh[0-9]+\.(googleusercontent|ggpht|blogspot)\.com/i;
+    const hrefRegex = /href="(https?:\/\/([^"\s]+))"/gi;
+    let hrefMatch: RegExpExecArray | null;
+    while ((hrefMatch = hrefRegex.exec(rawContent)) !== null) {
+      const fullUrl = hrefMatch[1];
+      const domain = hrefMatch[2].replace(/^www\./, '').split('/')[0];
+      if (!EXCLUDED_DOMAINS.test(fullUrl) && domain.length > 0 && domain.length < 40) {
+        // Use a clean short name: domain without TLD for brevity, or full domain if short
+        const parts = domain.split('.');
+        const tag = parts.length >= 2 ? parts[parts.length - 2] : domain;
+        if (!fallbackTags.includes(tag) && !fallbackTags.includes(domain)) {
+          fallbackTags.push(domain);
+        }
+        break; // only first real link
+      }
+    }
+    // Ultimate fallback
+    if (!fallbackTags.length) {
+      fallbackTags.push('web');
+    }
+    platformTags = fallbackTags.map(t => `<span class="platform-tag">${t}</span>`).join('\n                    ');
+  }
+
+  // ── Curation changelog — always present for consistency ──
   const changelogBlock = changelog
     ? `
     <div class="curation-changelog">
         <div class="changelog-header"><i class="material-icons" style="font-size:14px">terminal</i> ARCHIVE_RESTORATION_LOG</div>
         ${changelog}
     </div>`
-    : '';
+    : `
+    <div class="curation-changelog">
+        <div class="changelog-header"><i class="material-icons" style="font-size:14px">terminal</i> ARCHIVE_RESTORATION_LOG</div>
+        <div class="changelog-line c-chore">[CHORE] Revision de contenido</div>
+    </div>`;
 
   return `<div class="museum-card" style="--percent: ${nostalgia}%; --humo: ${smoke}%;">
     <div class="museum-card-header">
@@ -233,7 +283,7 @@ export function generateMuseumCardHtml(entry: MuseumEntry): string {
         <div class="metric-smoke-col">
             <div class="metric-title">Índice Fúmico</div>
             <div class="metric-smoke">
-                <span class="smoke-fire">${smoke >= 60 ? '🔥' : '💨'}</span>
+                <span class="smoke-fire">🔥</span>
                 <div class="smoke-details">
                     <div class="smoke-gauge">
                         <div class="smoke-bar-fill"></div>
