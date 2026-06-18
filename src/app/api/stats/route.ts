@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const total = await db.blogEntry.count();
   const posts = await db.blogEntry.count({ where: { entryType: 'POST' } });
@@ -29,7 +31,7 @@ export async function GET() {
   }
   const labels = Array.from(labelSet).sort();
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     total,
     posts,
     pages,
@@ -43,4 +45,6 @@ export async function GET() {
     totalWords,
     labels,
   });
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return response;
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || '';
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
     db.blogEntry.count({ where }),
   ]);
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     entries,
     pagination: {
       page,
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     },
   });
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return response;
 }
 
 export async function PATCH(request: NextRequest) {
