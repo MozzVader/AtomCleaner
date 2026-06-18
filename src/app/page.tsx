@@ -436,7 +436,7 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
 // ── Entry List (with proper pagination) ────────────────────────────────────
 
 function EntryList() {
-  const { filters, setFilter, isLoading } = useAppStore();
+  const { filters, setFilter, isLoading, refreshTrigger } = useAppStore();
   const [entries, setEntries] = React.useState<EntryListItem[]>([]);
   const [totalPages, setTotalPages] = React.useState(1);
   const [total, setTotal] = React.useState(0);
@@ -469,7 +469,7 @@ function EntryList() {
     };
     load();
     return () => { cancelled = true; };
-  }, [filters.type, filters.status, filters.label, filters.search, filters.sortBy, filters.sortOrder, filters.page, toast]);
+  }, [filters.type, filters.status, filters.label, filters.search, filters.sortBy, filters.sortOrder, filters.page, refreshTrigger, toast]);
 
   const refreshEntries = () => {
     const f = useAppStore.getState().filters;
@@ -612,6 +612,7 @@ function PreviewPanel() {
     try {
       await fetch(`/api/entries/${entry.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       setSelectedEntry({ ...entry, status });
+      useAppStore.getState().bumpRefresh();
       fetch('/api/stats').then(r => r.json()).then(d => useAppStore.getState().setStats(d)).catch(() => {});
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
@@ -838,6 +839,7 @@ function DashboardView() {
       const data = await res.json();
       toast({ title: `${data.updated} entradas actualizadas` });
       fetchStats();
+      useAppStore.getState().bumpRefresh();
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
     }

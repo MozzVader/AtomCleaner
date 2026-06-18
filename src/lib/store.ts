@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type ViewMode = 'upload' | 'dashboard';
 export type EntryType = 'POST' | 'PAGE' | 'DRAFT' | 'COMMENT' | '';
@@ -77,6 +78,7 @@ interface AppState {
   };
   isLoading: boolean;
   isPreviewOpen: boolean;
+  refreshTrigger: number;
 
   setView: (v: ViewMode) => void;
   setUploadResult: (r: UploadResult) => void;
@@ -86,6 +88,7 @@ interface AppState {
   setFilter: <K extends keyof AppState['filters']>(key: K, value: AppState['filters'][K]) => void;
   setLoading: (l: boolean) => void;
   setPreviewOpen: (open: boolean) => void;
+  bumpRefresh: () => void;
   resetAll: () => void;
 }
 
@@ -119,35 +122,57 @@ const initialFilters = {
   page: 1,
 };
 
-export const useAppStore = create<AppState>((set) => ({
-  view: 'upload',
-  uploadResult: null,
-  stats: null,
-  selectedId: null,
-  selectedEntry: null,
-  filters: initialFilters,
-  isLoading: false,
-  isPreviewOpen: false,
-
-  setView: (v) => set({ view: v }),
-  setUploadResult: (r) => set({ uploadResult: r }),
-  setStats: (s) => set({ stats: s }),
-  setSelectedId: (id) => set({ selectedId: id }),
-  setSelectedEntry: (e) => set({ selectedEntry: e }),
-  setFilter: (key, value) =>
-    set((state) => ({
-      filters: { ...state.filters, [key]: value, ...(key !== 'page' ? { page: 1 } : {}) },
-    })),
-  setLoading: (l) => set({ isLoading: l }),
-  setPreviewOpen: (open) => set({ isPreviewOpen: open }),
-  resetAll: () =>
-    set({
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
       view: 'upload',
       uploadResult: null,
       stats: null,
       selectedId: null,
       selectedEntry: null,
       filters: initialFilters,
+      isLoading: false,
       isPreviewOpen: false,
+      refreshTrigger: 0,
+
+      setView: (v) => set({ view: v }),
+      setUploadResult: (r) => set({ uploadResult: r }),
+      setStats: (s) => set({ stats: s }),
+      setSelectedId: (id) => set({ selectedId: id }),
+      setSelectedEntry: (e) => set({ selectedEntry: e }),
+      setFilter: (key, value) =>
+        set((state) => ({
+          filters: { ...state.filters, [key]: value, ...(key !== 'page' ? { page: 1 } : {}) },
+        })),
+      setLoading: (l) => set({ isLoading: l }),
+      setPreviewOpen: (open) => set({ isPreviewOpen: open }),
+      bumpRefresh: () => set((s) => ({ refreshTrigger: s.refreshTrigger + 1 })),
+      resetAll: () =>
+        set({
+          view: 'upload',
+          uploadResult: null,
+          stats: null,
+          selectedId: null,
+          selectedEntry: null,
+          filters: initialFilters,
+          isPreviewOpen: false,
+        }),
     }),
-}));
+    {
+      name: 'curador-filters',
+      storage: createJSONStorage(() => localStorage),
+      // Only persist filters — everything else is ephemeral
+      partialize: (state) => ({
+        filters: state.filters,
+      }),
+      // On hydration, use stored filters but keep everything else as initial
+      merge: (persisted, current) => {
+        const p = persisted as Partial<AppState>;
+        return {
+          ...current,
+          ...(p.filters ? { filters: p.filters } : {}),
+        };
+      },
+    }
+  )
+);
