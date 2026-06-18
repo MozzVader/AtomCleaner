@@ -157,34 +157,35 @@ function buildChangelog(issues: string): string {
     if (!parsed.length) return '';
     const lines: string[] = [];
     for (const issue of parsed) {
-      const count = issue.count && issue.count > 1 ? ` (${issue.count})` : '';
+      const n = issue.count || 1;
       switch (issue.type) {
         case 'dead_image_host':
-          lines.push(`<div style="color:#ef4444">[FIX] ${issue.count || 1} imagen${(issue.count || 1) > 1 ? 's' : ''} de servidor obsoleto${count}</div>`);
+          lines.push(`<div class="changelog-line c-fix">[FIX] ${n} imagen${n > 1 ? 'es' : ''} re-hosteadas en Supabase Storage</div>`);
           break;
         case 'flash_embed':
-          lines.push(`<div style="color:#f59e0b">[CONVERT] ${issue.count || 1} contenido Flash/SWF obsoleto${count}</div>`);
+          lines.push(`<div class="changelog-line c-convert">[CONVERT] ${n} archivo${n > 1 ? 's' : ''} .swf reemplazado${n > 1 ? 's' : ''} por emulador Ruffle</div>`);
           break;
         case 'empty_content':
-          lines.push(`<div style="color:#6b7280">[REVIEW] Contenido vacio o minimo</div>`);
+          lines.push(`<div class="changelog-line c-remove">[REMOVE] Contenido vacio o minimo</div>`);
           break;
         case 'short_content':
-          lines.push(`<div style="color:#6b7280">[REVIEW] Contenido muy corto</div>`);
+          lines.push(`<div class="changelog-line c-remove">[REMOVE] Contenido muy corto (posible post de prueba)</div>`);
           break;
         case 'no_title':
-          lines.push(`<div style="color:#6b7280">[FIX] Sin titulo original</div>`);
+          lines.push(`<div class="changelog-line c-fix">[FIX] Titulo restaurado manualmente</div>`);
           break;
       }
     }
-    return lines.join('');
+    return lines.join('\n        ');
   } catch {
     return '';
   }
 }
 
 /**
- * Generates a standalone museum card plaque for a single entry.
- * All styles are inline — ready to paste into any blog.
+ * Generates ONLY the museum card snippet — no post content.
+ * Uses exact class names for Astro CSS to handle styling.
+ * Ready to paste into Quill / any rich editor.
  */
 export function generateMuseumCardHtml(entry: MuseumEntry): string {
   const platforms: string[] = JSON.parse(entry.platforms || '[]');
@@ -192,80 +193,91 @@ export function generateMuseumCardHtml(entry: MuseumEntry): string {
   const smoke = entry.smokeIndex || 0;
   const smokeLevel = getSmokeLevel(smoke);
   const changelog = buildChangelog(entry.issues);
-  const labels: string[] = JSON.parse(entry.labels || '[]');
   const formattedDate = entry.publishedAt
     ? new Date(entry.publishedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
     : 'Fecha desconocida';
 
   const platformTags = platforms.length > 0
-    ? platforms.map(p => `<span style="display:inline-block;padding:3px 10px;border-radius:4px;background:rgba(139,92,246,0.1);color:#7c3aed;font-size:11px;font-weight:500;border:1px solid rgba(139,92,246,0.2)">${p}</span>`).join(' ')
-    : '<span style="color:#9ca3af;font-size:12px;font-style:italic">Sin plataformas detectadas</span>';
+    ? platforms.map(p => `<span class="platform-tag">${p}</span>`).join('\n                    ')
+    : '';
 
-  return `<!-- Museo Card: ${entry.title} -->
-<div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:24px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
-  <!-- Header -->
-  <div style="padding:14px 18px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase">&#128218; Post Rescatado</span>
-      ${labels.length > 0 ? labels.map(l => `<span style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:4px;font-size:10px">${l}</span>`).join(' ') : ''}
+  const changelogBlock = changelog
+    ? `
+    <div class="curation-changelog">
+        <div class="changelog-header"><i class="material-icons" style="font-size:14px">terminal</i> ARCHIVE_RESTORATION_LOG</div>
+        ${changelog}
+    </div>`
+    : '';
+
+  return `<div class="museum-card" style="--percent: ${nostalgia}%; --humo: ${smoke}%;">
+    <div class="museum-card-header">
+        <div class="badge"><i class="material-icons" style="font-size:14px">history</i> Post Rescatado</div>
+        <div class="original-date">Publicado originalmente: <strong>${formattedDate}</strong></div>
     </div>
-    <div style="color:rgba(255,255,255,0.6);font-size:11px">Publicado originalmente: <strong style="color:rgba(255,255,255,0.9)">${formattedDate}</strong></div>
-  </div>
-
-  <!-- Metrics Row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #e5e7eb">
-    <!-- Nostalgia -->
-    <div style="padding:16px 18px;border-right:1px solid #e5e7eb">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;font-weight:600;margin-bottom:10px">Nivel de Nostalgia</div>
-      <div style="display:flex;align-items:center;gap:14px">
-        <div style="width:56px;height:56px;border-radius:50%;background:conic-gradient(#f59e0b 0% ${nostalgia}%,#f3f4f6 ${nostalgia}% 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <div style="width:42px;height:42px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#f59e0b">${nostalgia}%</div>
+    <div class="museum-card-body">
+        <div class="metric-nostalgia-col">
+            <div class="metric-title">Nivel de Nostalgia</div>
+            <div class="metric-nostalgia">
+                <div class="chart-container-mini">
+                    <div class="circular-chart-mini">
+                        <div class="inner-circle-mini">
+                            <span class="percentage-mini">${nostalgia}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="platforms-grid">
+                    ${platformTags}
+                </div>
+            </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0">${platformTags}</div>
-      </div>
-    </div>
-
-    <!-- Smoke Index -->
-    <div style="padding:16px 18px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;font-weight:600;margin-bottom:10px">Indice Humico</div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:24px;flex-shrink:0">${smoke >= 80 ? '&#128293;' : smoke >= 40 ? '&#128292;' : '&#128292;'}</span>
-        <div style="flex:1;min-width:0">
-          <div style="height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden">
-            <div style="height:100%;width:${smoke}%;border-radius:4px;background:${smoke >= 80 ? '#ef4444' : smoke >= 60 ? '#f97316' : smoke >= 40 ? '#f59e0b' : '#22c55e'};transition:width 0.3s"></div>
-          </div>
-          <div style="margin-top:4px;font-size:11px;color:#6b7280">Nivel: <strong style="color:#374151">${smokeLevel}</strong></div>
+        <div class="metric-smoke-col">
+            <div class="metric-title">Índice Fúmico</div>
+            <div class="metric-smoke">
+                <span class="smoke-fire">${smoke >= 60 ? '🔥' : '💨'}</span>
+                <div class="smoke-details">
+                    <div class="smoke-gauge">
+                        <div class="smoke-bar-fill"></div>
+                    </div>
+                    <div class="smoke-meta">Nivel: <strong>${smokeLevel}</strong></div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Curation Changelog -->
-  ${changelog ? `
-  <div style="padding:12px 18px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px">&#128187; ARCHIVE_RESTORATION_LOG</div>
-    <div style="font-size:12px;font-family:monospace;line-height:1.8">${changelog}</div>
-  </div>` : ''}
-
-  <!-- Post Content -->
-  <div style="padding:20px 18px;line-height:1.7;color:#333;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-    <h2 style="font-size:1.3rem;font-weight:700;margin:0 0 12px 0;color:#111">${entry.title}</h2>
-    ${entry.content}
-  </div>
-
-  <!-- Footer -->
-  <div style="padding:10px 18px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
-    <span>${entry.wordCount.toLocaleString('es-AR')} palabras${entry.author ? ` · ${entry.author}` : ''}</span>
-    ${entry.originalUrl ? `<a href="${entry.originalUrl}" style="color:#f59e0b;text-decoration:none" target="_blank" rel="noopener noreferrer">Ver original &#8599;</a>` : ''}
-  </div>
+    </div>${changelogBlock}
 </div>`;
 }
 
 /**
  * Export all entries as a standalone HTML file with museum plaques.
+ * Each entry shows: museum card snippet (copy-ready) + post content below.
  */
 export function exportToMuseumHtml(entries: MuseumEntry[]): string {
-  const entriesHtml = entries.map(e => generateMuseumCardHtml(e)).join('\n');
+  const entriesHtml = entries.map(e => {
+    const card = generateMuseumCardHtml(e);
+    const labels: string[] = JSON.parse(e.labels || '[]');
+    const labelBadges = labels.length > 0
+      ? ` <span style="color:#888;font-size:12px">[${labels.join(', ')}]</span>`
+      : '';
+    return `
+  <section style="margin-bottom:48px">
+    <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:8px;color:#111">${e.title}${labelBadges}</h2>
+    <div style="margin-bottom:12px;font-size:13px;color:#666">
+      ${e.publishedAt ? formatDate(e.publishedAt) : 'Sin fecha'}
+      ${e.author ? ` · ${e.author}` : ''}
+      · ${e.wordCount.toLocaleString('es-AR')} palabras
+    </div>
+
+    <!-- Museum Card Snippet (copy this into Quill) -->
+    <div style="margin-bottom:16px;padding:12px;background:#f8f9fa;border:1px dashed #ccc;border-radius:6px;font-size:11px;color:#888;margin-bottom:12px">Museum Card Snippet ↓</div>
+    ${card}
+    <div style="margin-bottom:20px"></div>
+
+    <!-- Post Content -->
+    <div style="line-height:1.7;color:#333;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+      ${e.content}
+    </div>
+    ${e.originalUrl ? `<div style="margin-top:8px;font-size:12px"><a href="${e.originalUrl}" style="color:#888">Ver original en Blogger</a></div>` : ''}
+  </section>`;
+  }).join('\n');
 
   return `<!DOCTYPE html>
 <html lang="es">

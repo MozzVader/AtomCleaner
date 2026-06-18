@@ -800,16 +800,6 @@ function PreviewPanel() {
                 {showMuseum ? 'Contenido' : 'Museum Card'}
               </Button>
             )}
-            {showMuseum && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-7 text-[11px] gap-1.5 shadow-md border-border/50"
-                onClick={copyMuseumHtml}
-              >
-                <Copy className="h-3 w-3" /> Copiar
-              </Button>
-            )}
             {!showMuseum && (
               <Button
                 variant="secondary"
@@ -828,22 +818,25 @@ function PreviewPanel() {
                 <div className="flex items-center justify-center py-12">
                   <RefreshCw className="h-6 w-6 text-amber-500 animate-spin" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Rendered preview */}
-                  <div className="border border-border/50 rounded-lg overflow-hidden">
-                    <div className="text-[10px] text-muted-foreground px-3 py-1.5 bg-muted/30 border-b">Preview</div>
-                    <div dangerouslySetInnerHTML={{ __html: museumHtml }} />
+              ) : museumHtml ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] text-muted-foreground">Snippet listo para pegar en Quill</div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 text-[11px] gap-1.5"
+                      onClick={copyMuseumHtml}
+                    >
+                      <Copy className="h-3 w-3" /> Copiar HTML
+                    </Button>
                   </div>
-                  {/* Raw HTML code */}
-                  <details className="group">
-                    <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground px-1 py-1">
-                      Ver codigo HTML generado
-                    </summary>
-                    <pre className="p-3 mt-1 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed bg-muted/20 rounded-lg border border-border/50 max-h-60 overflow-y-auto">
-                      {museumHtml}
-                    </pre>
-                  </details>
+                  <pre className="p-3 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed bg-muted/20 rounded-lg border border-border/50 max-h-[calc(100vh-320px)] overflow-y-auto">
+{museumHtml}</pre>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  No se pudo generar la Museum Card
                 </div>
               )}
             </div>
