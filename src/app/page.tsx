@@ -600,7 +600,7 @@ function PreviewContent({ entry }: { entry: FullEntry }) {
   const [showSource, setShowSource] = React.useState(false);
 
   return (
-    <div className="flex-1 min-h-0 overflow-hidden relative">
+    <div className="flex-1 min-h-0 relative">
       {/* Toggle button */}
       <div className="absolute top-2 right-2 z-10">
         <Button
@@ -613,8 +613,8 @@ function PreviewContent({ entry }: { entry: FullEntry }) {
         </Button>
       </div>
 
-      {/* Scrollable content area */}
-      <div className="h-full overflow-y-auto">
+      {/* Scrollable content area — absolute to fill flex-constrained parent */}
+      <div className="absolute inset-0 overflow-y-auto">
         {showSource ? (
           <pre className="p-5 pt-10 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed">
             {entry.content}
@@ -624,8 +624,7 @@ function PreviewContent({ entry }: { entry: FullEntry }) {
             className="p-5 pt-10 prose prose-sm dark:prose-invert max-w-none
               prose-img:max-w-full prose-img:h-auto
               prose-a:text-amber-500 hover:prose-a:text-amber-400
-              prose-headings:font-semibold
-              overflow-wrap-anywhere"
+              prose-headings:font-semibold"
             style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             dangerouslySetInnerHTML={{ __html: entry.content }}
           />
@@ -660,7 +659,7 @@ function PreviewPanel() {
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) { setPreviewOpen(false); setSelectedEntry(null); } }}>
       <DialogContent
         key={entry.id}
-        className="max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0"
+        className="max-w-7xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0"
       >
         {/* Header */}
         <div className="p-5 pb-3 space-y-2.5 flex-shrink-0">
@@ -739,12 +738,21 @@ function PreviewPanel() {
 
 // ── Export Buttons ─────────────────────────────────────────────────────────
 
+const EXPORT_STATUS_OPTIONS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'approved', label: 'Aprobados' },
+  { value: 'pending_review', label: 'Pendientes' },
+  { value: 'discarded', label: 'Descartados' },
+] as const;
+
 function ExportButtons() {
   const { toast } = useToast();
+  const [exportStatus, setExportStatus] = React.useState('all');
 
-  const doExport = async (format: string, status: string) => {
+  const doExport = async (format: string) => {
     try {
-      const res = await fetch(`/api/export?${new URLSearchParams({ format, status })}`);
+      const params = new URLSearchParams({ format, status: exportStatus });
+      const res = await fetch(`/api/export?${params}`);
       if (!res.ok) throw new Error((await res.json()).error || 'Error');
       const blob = await res.blob();
       const a = document.createElement('a');
@@ -752,7 +760,8 @@ function ExportButtons() {
       a.download = `curador-export.${format === 'markdown' ? 'md' : format}`;
       a.click();
       URL.revokeObjectURL(a.href);
-      toast({ title: 'Exportado' });
+      const statusLabel = EXPORT_STATUS_OPTIONS.find(o => o.value === exportStatus)?.label || exportStatus;
+      toast({ title: `${statusLabel} exportados` });
     } catch (err) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : '', variant: 'destructive' });
     }
@@ -760,10 +769,20 @@ function ExportButtons() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <Select onValueChange={(v) => doExport(v, 'approved')}>
-        <SelectTrigger className="h-8 text-[11px] gap-1.5">
+      <Select value={exportStatus} onValueChange={setExportStatus}>
+        <SelectTrigger className="h-8 text-[11px] gap-1.5 w-[120px]">
           <Download className="h-3.5 w-3.5" />
-          <SelectValue placeholder="Aprobados" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {EXPORT_STATUS_OPTIONS.map(o => (
+            <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select onValueChange={(v) => doExport(v)}>
+        <SelectTrigger className="h-8 text-[11px] gap-1.5">
+          <SelectValue placeholder="Formato" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="json"><span className="flex items-center gap-2"><FileJson className="h-3.5 w-3.5" /> JSON</span></SelectItem>

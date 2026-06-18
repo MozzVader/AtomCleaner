@@ -3,19 +3,22 @@ import { db } from '@/lib/db';
 import { exportToJson, exportToMarkdown, exportToHtml } from '@/lib/exporter';
 import { cleanContent } from '@/lib/atom-parser';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
-  const status = searchParams.get('status') || 'approved';
-  const type = searchParams.get('type') || '';
+  const status = searchParams.get('status') || 'all';
 
-  // Build where clause
-  const where: Record<string, unknown> = {};
-  if (status) where.status = status;
-  if (type) where.entryType = type;
+  // Build where clause — always exclude comments
+  const where: Record<string, unknown> = {
+    entryType: { not: 'COMMENT' },
+  };
 
-  // Exclude comments from exports (they're not posts)
-  where.entryType = { not: 'COMMENT' };
+  // Allow filtering by status; "all" means no status filter
+  if (status && status !== 'all') {
+    where.status = status;
+  }
 
   const entries = await db.blogEntry.findMany({
     where,
@@ -58,10 +61,14 @@ export async function GET(request: NextRequest) {
       break;
   }
 
+  // Include status in filename for clarity
+  const statusLabel = status === 'all' ? 'todos' : status;
+
   return new NextResponse(content, {
     headers: {
       'Content-Type': `${mimeType}; charset=utf-8`,
-      'Content-Disposition': `attachment; filename="curador-export-${Date.now()}.${fileExtension}"`,
+      'Content-Disposition': `attachment; filename="curador-${statusLabel}-${Date.now()}.${fileExtension}"`,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
     },
   });
 }
