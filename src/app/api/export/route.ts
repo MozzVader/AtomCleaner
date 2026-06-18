@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { exportToJson, exportToMarkdown, exportToHtml } from '@/lib/exporter';
+import { exportToJson, exportToMarkdown, exportToHtml, exportToMuseumHtml, type MuseumEntry } from '@/lib/exporter';
 import { cleanContent } from '@/lib/atom-parser';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     where.status = status;
   }
 
+  // Museum format needs extra fields
+  const isMuseum = format === 'museum-html';
+
   const entries = await db.blogEntry.findMany({
     where,
     orderBy: { publishedAt: 'desc' },
@@ -31,6 +34,11 @@ export async function GET(request: NextRequest) {
       originalUrl: true,
       labels: true,
       status: true,
+      issues: true,
+      wordCount: true,
+      platforms: isMuseum ? true : false,
+      nostalgiaScore: isMuseum ? true : false,
+      smokeIndex: isMuseum ? true : false,
     },
   });
 
@@ -49,6 +57,12 @@ export async function GET(request: NextRequest) {
   let fileExtension: string;
 
   switch (format) {
+    case 'museum-html':
+      content = exportToMuseumHtml(cleanedEntries as unknown as MuseumEntry[]);
+      mimeType = 'text/html';
+      fileExtension = 'museum.html';
+      break;
+
     case 'markdown':
     case 'md':
       content = exportToMarkdown(cleanedEntries);

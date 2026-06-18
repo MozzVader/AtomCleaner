@@ -59,6 +59,9 @@ export interface EntryListItem {
   issues: string;
   wordCount: number;
   commentCount: number;
+  platforms: string;
+  nostalgiaScore: number;
+  smokeIndex: number;
 }
 
 interface AppState {
@@ -79,6 +82,7 @@ interface AppState {
   isLoading: boolean;
   isPreviewOpen: boolean;
   refreshTrigger: number;
+  publishedEntries: string[]; // entry IDs that were exported as museum cards
 
   setView: (v: ViewMode) => void;
   setUploadResult: (r: UploadResult) => void;
@@ -89,6 +93,8 @@ interface AppState {
   setLoading: (l: boolean) => void;
   setPreviewOpen: (open: boolean) => void;
   bumpRefresh: () => void;
+  markPublished: (ids: string[]) => void;
+  isEntryPublished: (id: string) => boolean;
   resetAll: () => void;
 }
 
@@ -108,6 +114,9 @@ export interface FullEntry {
   wordCount: number;
   commentCount: number;
   parentId: string | null;
+  platforms: string;
+  nostalgiaScore: number;
+  smokeIndex: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -124,7 +133,7 @@ const initialFilters = {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       view: 'upload',
       uploadResult: null,
       stats: null,
@@ -134,6 +143,7 @@ export const useAppStore = create<AppState>()(
       isLoading: false,
       isPreviewOpen: false,
       refreshTrigger: 0,
+      publishedEntries: [],
 
       setView: (v) => set({ view: v }),
       setUploadResult: (r) => set({ uploadResult: r }),
@@ -147,6 +157,10 @@ export const useAppStore = create<AppState>()(
       setLoading: (l) => set({ isLoading: l }),
       setPreviewOpen: (open) => set({ isPreviewOpen: open }),
       bumpRefresh: () => set((s) => ({ refreshTrigger: s.refreshTrigger + 1 })),
+      markPublished: (ids) => set((s) => ({
+        publishedEntries: [...new Set([...s.publishedEntries, ...ids])],
+      })),
+      isEntryPublished: (id) => get().publishedEntries.includes(id),
       resetAll: () =>
         set({
           view: 'upload',
@@ -161,16 +175,18 @@ export const useAppStore = create<AppState>()(
     {
       name: 'curador-filters',
       storage: createJSONStorage(() => localStorage),
-      // Only persist filters — everything else is ephemeral
+      // Persist filters and published tracking — everything else is ephemeral
       partialize: (state) => ({
         filters: state.filters,
+        publishedEntries: state.publishedEntries,
       }),
-      // On hydration, use stored filters but keep everything else as initial
+      // On hydration, use stored filters/published but keep everything else as initial
       merge: (persisted, current) => {
         const p = persisted as Partial<AppState>;
         return {
           ...current,
           ...(p.filters ? { filters: p.filters } : {}),
+          ...(p.publishedEntries ? { publishedEntries: p.publishedEntries } : {}),
         };
       },
     }

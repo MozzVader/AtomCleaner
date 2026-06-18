@@ -68,6 +68,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Landmark,
+  Copy,
 } from 'lucide-react';
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -381,6 +383,8 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
   const typeCfg = TYPE_CONFIG[entry.entryType] || TYPE_CONFIG.POST;
   const labels: string[] = JSON.parse(entry.labels || '[]');
   const issues: { type: string; message: string; count?: number }[] = JSON.parse(entry.issues || '[]');
+  const platforms: string[] = JSON.parse(entry.platforms || '[]');
+  const hasMuseoData = entry.nostalgiaScore > 0 || entry.smokeIndex > 0 || platforms.length > 0;
 
   return (
     <div
@@ -404,6 +408,14 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
           <span>{formatShortDate(entry.publishedAt)}</span>
           {entry.author && <span>{entry.author}</span>}
           <span>{entry.wordCount.toLocaleString('es-AR')} pal.</span>
+          {hasMuseoData && (
+            <span className="text-amber-500 font-medium" title={`Nostalgia: ${entry.nostalgiaScore}% | Humo: ${entry.smokeIndex}%`}>
+              {entry.nostalgiaScore > 0 && `${entry.nostalgiaScore}%`} 
+              {entry.nostalgiaScore > 0 && entry.smokeIndex > 0 && '/'} 
+              {entry.smokeIndex > 0 && `${entry.smokeIndex}%`} 
+              {platforms.length > 0 && ` · ${platforms.length} pl.`}
+            </span>
+          )}
         </div>
         {labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
@@ -597,9 +609,12 @@ function EntryList() {
 // ── Preview Modal ──────────────────────────────────────────────────────────
 
 function PreviewPanel() {
-  const { selectedEntry, isPreviewOpen, setPreviewOpen, setSelectedEntry } = useAppStore();
+  const { selectedEntry, isPreviewOpen, setPreviewOpen, setSelectedEntry, publishedEntries } = useAppStore();
   const { toast } = useToast();
   const [showSource, setShowSource] = React.useState(false);
+  const [showMuseum, setShowMuseum] = React.useState(false);
+  const [museumHtml, setMuseumHtml] = React.useState('');
+  const [museumLoading, setMuseumLoading] = React.useState(false);
 
   if (!selectedEntry) return null;
 
@@ -607,6 +622,10 @@ function PreviewPanel() {
   const typeCfg = TYPE_CONFIG[entry.entryType] || TYPE_CONFIG.POST;
   const labels: string[] = JSON.parse(entry.labels || '[]');
   const issues: { type: string; message: string; count?: number }[] = JSON.parse(entry.issues || '[]');
+  const platforms: string[] = JSON.parse(entry.platforms || '[]');
+  const nostalgia = entry.nostalgiaScore || 0;
+  const smoke = entry.smokeIndex || 0;
+  const isPublished = publishedEntries.includes(entry.id);
 
   const handleStatusChange = async (status: string) => {
     try {
@@ -619,8 +638,45 @@ function PreviewPanel() {
     }
   };
 
+  const loadMuseumCard = async () => {
+    if (showMuseum) { setShowMuseum(false); return; }
+    setMuseumLoading(true);
+    try {
+      const res = await fetch(`/api/museum-card/${entry.id}`);
+      const data = await res.json();
+      if (data.html) {
+        setMuseumHtml(data.html);
+        setShowMuseum(true);
+      }
+    } catch {
+      toast({ title: 'Error al generar Museum Card', variant: 'destructive' });
+    } finally {
+      setMuseumLoading(false);
+    }
+  };
+
+  const copyMuseumHtml = async () => {
+    try {
+      await navigator.clipboard.writeText(museumHtml);
+      toast({ title: 'HTML copiado al portapapeles' });
+    } catch {
+      toast({ title: 'Error al copiar', variant: 'destructive' });
+    }
+  };
+
+  const handleClose = () => {
+    setPreviewOpen(false);
+    setSelectedEntry(null);
+    setShowSource(false);
+    setShowMuseum(false);
+    setMuseumHtml('');
+  };
+
+  const smokeLevel = smoke <= 20 ? 'Leve' : smoke <= 40 ? 'Moderado' : smoke <= 60 ? 'Moderado-Alto' : smoke <= 80 ? 'Alto' : 'Humo Total';
+  const smokeColor = smoke >= 80 ? 'bg-red-500' : smoke >= 60 ? 'bg-orange-500' : smoke >= 40 ? 'bg-amber-500' : 'bg-emerald-500';
+
   return (
-    <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) { setPreviewOpen(false); setSelectedEntry(null); setShowSource(false); } }}>
+    <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent
         key={entry.id}
         /* Grid layout: row 1 = header (auto), row 2 = content (1fr), row 3 = footer (auto)
@@ -668,6 +724,58 @@ function PreviewPanel() {
                 })}
               </div>
             )}
+
+            {/* Museum Metrics */}
+            {(nostalgia > 0 || smoke > 0 || platforms.length > 0) && (
+              <div className="flex flex-wrap items-center gap-3 p-2.5 rounded-lg bg-gradient-to-r from-violet-50 to-amber-50 dark:from-violet-950/20 dark:to-amber-950/20 border border-violet-200/40 dark:border-violet-800/30">
+                {/* Nostalgia Score */}
+                {nostalgia > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-10 h-10 flex-shrink-0" title={`Nostalgia: ${nostalgia}%`}>
+                      <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted-foreground/20" />
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="#f59e0b" strokeWidth="3" strokeDasharray={`${nostalgia} ${100 - nostalgia}`} strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-amber-600">{nostalgia}</span>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Nostalgia</div>
+                      <div className="text-xs font-semibold text-amber-600">{nostalgia}%</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Smoke Index */}
+                {smoke > 0 && (
+                  <div className="flex items-center gap-2 min-w-[120px]" title={`Indice Fumico: ${smoke}% — ${smokeLevel}`}>
+                    <span className="text-lg">{smoke >= 80 ? '🔥' : '💨'}</span>
+                    <div className="flex-1">
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Indice Fumico</div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${smokeColor}`} style={{ width: `${Math.min(100, smoke)}%` }} />
+                      </div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5">{smoke}% — {smokeLevel}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Platform Tags */}
+                {platforms.length > 0 && (
+                  <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                    {platforms.map(p => (
+                      <span key={p} className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[9px] font-medium truncate max-w-[100px]" title={p}>{p}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Published indicator */}
+                {isPublished && (
+                  <span className="ml-auto text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1" title="Exportado como Museum Card">
+                    <Landmark className="h-3 w-3" /> Exportado
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <Separator />
         </div>
@@ -678,19 +786,68 @@ function PreviewPanel() {
              and overflow-y won't activate */
           className="min-h-0 overflow-y-auto relative"
         >
-          {/* Toggle button — absolute so it doesn't affect layout */}
-          <div className="absolute top-2 right-2 z-10">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-7 text-[11px] gap-1.5 shadow-md border-border/50"
-              onClick={() => setShowSource(s => !s)}
-            >
-              {showSource ? <><Eye className="h-3 w-3" /> Preview</> : <><Code2 className="h-3 w-3" /> HTML</>}
-            </Button>
+          {/* Toggle buttons — absolute so they don't affect layout */}
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5">
+            {entry.entryType !== 'COMMENT' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 text-[11px] gap-1.5 shadow-md border-border/50"
+                onClick={loadMuseumCard}
+                disabled={museumLoading}
+              >
+                {museumLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Landmark className="h-3 w-3" />}
+                {showMuseum ? 'Contenido' : 'Museum Card'}
+              </Button>
+            )}
+            {showMuseum && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 text-[11px] gap-1.5 shadow-md border-border/50"
+                onClick={copyMuseumHtml}
+              >
+                <Copy className="h-3 w-3" /> Copiar
+              </Button>
+            )}
+            {!showMuseum && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 text-[11px] gap-1.5 shadow-md border-border/50"
+                onClick={() => setShowSource(s => !s)}
+              >
+                {showSource ? <><Eye className="h-3 w-3" /> Preview</> : <><Code2 className="h-3 w-3" /> HTML</>}
+              </Button>
+            )}
           </div>
 
-          {showSource ? (
+          {showMuseum ? (
+            <div className="p-5 pt-12">
+              {museumLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="h-6 w-6 text-amber-500 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Rendered preview */}
+                  <div className="border border-border/50 rounded-lg overflow-hidden">
+                    <div className="text-[10px] text-muted-foreground px-3 py-1.5 bg-muted/30 border-b">Preview</div>
+                    <div dangerouslySetInnerHTML={{ __html: museumHtml }} />
+                  </div>
+                  {/* Raw HTML code */}
+                  <details className="group">
+                    <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground px-1 py-1">
+                      Ver codigo HTML generado
+                    </summary>
+                    <pre className="p-3 mt-1 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed bg-muted/20 rounded-lg border border-border/50 max-h-60 overflow-y-auto">
+                      {museumHtml}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          ) : showSource ? (
             <pre className="p-5 pt-10 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed">
               {entry.content}
             </pre>
@@ -757,11 +914,22 @@ function ExportButtons() {
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `curador-export.${format === 'markdown' ? 'md' : format}`;
+      const ext = format === 'museum-html' ? 'museum.html' : format === 'markdown' ? 'md' : format;
+      a.download = `curador-export.${ext}`;
       a.click();
       URL.revokeObjectURL(a.href);
       const statusLabel = EXPORT_STATUS_OPTIONS.find(o => o.value === exportStatus)?.label || exportStatus;
       toast({ title: `${statusLabel} exportados` });
+
+      // Track museum exports
+      if (format === 'museum-html') {
+        try {
+          const listRes = await fetch(`/api/entries?status=${exportStatus}&limit=1000`);
+          const listData = await listRes.json();
+          const ids = (listData.entries || []).map((e: { id: string }) => e.id);
+          if (ids.length > 0) useAppStore.getState().markPublished(ids);
+        } catch { /* best effort */ }
+      }
     } catch (err) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : '', variant: 'destructive' });
     }
@@ -788,6 +956,7 @@ function ExportButtons() {
           <SelectItem value="json"><span className="flex items-center gap-2"><FileJson className="h-3.5 w-3.5" /> JSON</span></SelectItem>
           <SelectItem value="markdown"><span className="flex items-center gap-2"><FileDown className="h-3.5 w-3.5" /> Markdown</span></SelectItem>
           <SelectItem value="html"><span className="flex items-center gap-2"><Globe className="h-3.5 w-3.5" /> HTML</span></SelectItem>
+          <SelectItem value="museum-html"><span className="flex items-center gap-2"><Landmark className="h-3.5 w-3.5 text-violet-500" /> Museo HTML</span></SelectItem>
         </SelectContent>
       </Select>
     </div>
