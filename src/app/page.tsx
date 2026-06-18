@@ -59,6 +59,10 @@ import {
   ExternalLink,
   Tag,
   RefreshCw,
+  Code2,
+  Eye,
+  ImageIcon,
+  Zap,
 } from 'lucide-react';
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -77,6 +81,14 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; dotC
   needs_editing: { label: 'Necesita edición', icon: <Edit3 className="h-3.5 w-3.5" />, dotClass: 'bg-blue-500' },
 };
 
+const ISSUE_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
+  dead_image_host: { icon: <ImageIcon className="h-3 w-3" />, color: 'text-red-500' },
+  flash_embed: { icon: <Zap className="h-3 w-3" />, color: 'text-orange-500' },
+  empty_content: { icon: <AlertTriangle className="h-3 w-3" />, color: 'text-amber-500' },
+  short_content: { icon: <AlertTriangle className="h-3 w-3" />, color: 'text-amber-500' },
+  no_title: { icon: <AlertTriangle className="h-3 w-3" />, color: 'text-amber-500' },
+};
+
 const formatShortDate = (iso: string | null) => {
   if (!iso) return 'Sin fecha';
   try { return new Date(iso).toLocaleDateString('es-AR', { year: 'numeric', month: 'short', day: 'numeric' }); }
@@ -89,6 +101,46 @@ const formatLongDate = (iso: string | null) => {
   catch { return iso; }
 };
 
+// ── Status Dropdown (shared component) ─────────────────────────────────────
+
+function StatusDropdown({
+  currentStatus,
+  onChange,
+  size = 'sm',
+  align = 'start',
+}: {
+  currentStatus: string;
+  onChange: (status: string) => void;
+  size?: 'sm' | 'default';
+  align?: 'start' | 'center' | 'end';
+}) {
+  const config = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.pending;
+
+  return (
+    <Select value={currentStatus} onValueChange={onChange}>
+      <SelectTrigger
+        className={`w-auto ${size === 'sm' ? 'h-7 w-7 p-0 border-0 shadow-none' : 'h-8 w-40'} gap-0`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`flex items-center justify-center ${size === 'sm' ? 'w-full h-full' : 'gap-1.5'}`}>
+          <div className={`w-2.5 h-2.5 rounded-full ${config.dotClass} flex-shrink-0`} />
+          {size !== 'sm' && <span className="text-xs">{config.label}</span>}
+        </div>
+      </SelectTrigger>
+      <SelectContent align={align}>
+        {Object.entries(STATUS_CONFIG).map(([key, c]) => (
+          <SelectItem key={key} value={key} className="text-xs gap-2">
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${c.dotClass}`} />
+              {c.label}
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // ── Upload View ────────────────────────────────────────────────────────────
 
 function UploadView() {
@@ -96,10 +148,6 @@ function UploadView() {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = React.useState(false);
   const [fileName, setFileName] = React.useState<string | null>(null);
-  const [debugResult, setDebugResult] = React.useState<Record<string, unknown> | null>(null);
-  const [showDebug, setShowDebug] = React.useState(false);
-  const [showParseTest, setShowParseTest] = React.useState(false);
-  const [parseTestResult, setParseTestResult] = React.useState<Record<string, unknown> | null>(null);
 
   const processFile = async (file: File) => {
     if (!file.name.endsWith('.atom') && !file.name.endsWith('.xml')) {
@@ -108,8 +156,6 @@ function UploadView() {
     }
     setFileName(file.name);
     setLoading(true);
-    setDebugResult(null);
-    setShowDebug(false);
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -127,49 +173,11 @@ function UploadView() {
     }
   };
 
-  const processDebugFile = async (file: File) => {
-    if (!file.name.endsWith('.atom') && !file.name.endsWith('.xml')) {
-      toast({ title: 'Formato inválido', description: 'Solo se aceptan archivos .atom o .xml', variant: 'destructive' });
-      return;
-    }
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/debug-parse', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al analizar');
-      setDebugResult(data);
-      setShowDebug(true);
-      toast({ title: 'Análisis de debug completado' });
-    } catch (err) {
-      toast({ title: 'Error en debug', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
-    }
-  };
-
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
   }, []);
-
-  const processParseTestFile = async (file: File) => {
-    if (!file.name.endsWith('.atom') && !file.name.endsWith('.xml')) {
-      toast({ title: 'Formato inválido', description: 'Solo .atom o .xml', variant: 'destructive' });
-      return;
-    }
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/parse-test', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error');
-      setParseTestResult(data);
-      setShowParseTest(true);
-      toast({ title: 'Test de parser completado' });
-    } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
-    }
-  };
 
   const pickFile = (onSelect: (f: File) => void) => {
     const input = document.createElement('input');
@@ -222,69 +230,10 @@ function UploadView() {
           )}
         </div>
 
-        {/* Debug buttons */}
-        <div className="mt-4 flex justify-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              pickFile(processParseTestFile);
-            }}
-          >
-            <FileJson className="h-3 w-3 mr-1" />
-            Test Parser (parseAtomXml real)
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              pickFile(processDebugFile);
-            }}
-          >
-            <Search className="h-3 w-3 mr-1" />
-            Diagnosticar XML crudo
-          </Button>
-        </div>
-
-        {/* Parse test output */}
-        {showParseTest && parseTestResult && (
-          <div className="mt-4 rounded-lg border border-green-300 bg-green-50/50 dark:bg-green-950/20 p-4 text-xs font-mono max-h-96 overflow-y-auto">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-green-700 dark:text-green-400">Resultado del Parser Real (parseAtomXml)</span>
-              <button onClick={() => setShowParseTest(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap break-all text-[11px] leading-relaxed">
-              {JSON.stringify(parseTestResult, null, 2)}
-            </pre>
-          </div>
-        )}
-
-        {/* Debug output */}
-        {showDebug && debugResult && (
-          <div className="mt-4 rounded-lg border bg-muted/30 p-4 text-xs font-mono max-h-80 overflow-y-auto">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-amber-600">Resultado del diagnóstico</span>
-              <button onClick={() => setShowDebug(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap break-all text-[11px] leading-relaxed">
-              {JSON.stringify(debugResult, null, 2)}
-            </pre>
-          </div>
-        )}
-
         <div className="mt-6 flex items-center justify-center gap-6 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Posts</span>
           <span className="flex items-center gap-1"><FilePenLine className="h-3.5 w-3.5" /> Borradores</span>
           <span className="flex items-center gap-1"><FileImage className="h-3.5 w-3.5" /> Páginas</span>
-          <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> Comentarios</span>
         </div>
       </div>
     </div>
@@ -298,7 +247,6 @@ function StatsBar() {
   if (!stats) return null;
 
   const items = [
-    { label: 'Total', value: stats.total, highlight: false },
     { label: 'Posts', value: stats.posts, highlight: false },
     { label: 'Páginas', value: stats.pages, highlight: false },
     { label: 'Borradores', value: stats.drafts, highlight: false },
@@ -317,22 +265,12 @@ function StatsBar() {
           {uploadResult.blogAuthor && <span className="text-muted-foreground">· {uploadResult.blogAuthor}</span>}
           {uploadResult.skippedTypes.length > 0 && (
             <span className="text-xs text-muted-foreground ml-auto">
-              Se omitieron: {uploadResult.skippedTypes.map(s => `${s.type} (${s.count})`).join(', ')}
+              Omitidos: {uploadResult.skippedTypes.map(s => `${s.type} (${s.count})`).join(', ')}
             </span>
           )}
         </div>
       )}
-      {uploadResult?.debugInfo && (
-        <div className="text-[10px] text-muted-foreground/70 font-mono bg-muted/30 rounded px-2 py-1">
-          Parser: {uploadResult.debugInfo.parseStrategy} ·
-          Primer entry keys: [{uploadResult.debugInfo.firstEntryKeys.slice(0, 8).join(', ')}] ·
-          Título: &quot;{uploadResult.debugInfo.sampleTitle}&quot; ·
-          Tipo: {uploadResult.debugInfo.sampleBloggerType} ·
-          Status: {uploadResult.debugInfo.sampleBloggerStatus} ·
-          Filename: {uploadResult.debugInfo.sampleFilename}
-        </div>
-      )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         {items.map((item) => (
           <div key={item.label} className={`rounded-lg p-3 text-center ${item.highlight ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' : 'bg-muted/50'}`}>
             <div className={`text-xl font-bold ${item.highlight ? 'text-amber-600' : ''}`}>{item.value.toLocaleString('es-AR')}</div>
@@ -427,27 +365,25 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
   onStatusChange: (id: string, status: string) => void;
 }) {
   const typeConfig = TYPE_CONFIG[entry.entryType] || TYPE_CONFIG.POST;
-  const statusConfig = STATUS_CONFIG[entry.status] || STATUS_CONFIG.pending;
   const labels: string[] = JSON.parse(entry.labels || '[]');
-  const issues: { type: string; message: string }[] = JSON.parse(entry.issues || '[]');
-
-  const cycleStatus = () => {
-    const order = ['pending', 'approved', 'discarded', 'needs_editing'];
-    const idx = order.indexOf(entry.status);
-    onStatusChange(entry.id, order[(idx + 1) % order.length]);
-  };
+  const issues: { type: string; message: string; count?: number }[] = JSON.parse(entry.issues || '[]');
 
   return (
     <div
-      className={`group flex items-start gap-3 p-3 rounded-lg border transition-all duration-150 cursor-pointer
+      className={`group flex items-start gap-3 p-3 rounded-lg border transition-all duration-150 cursor-pointer relative
         hover:border-amber-300 dark:hover:border-amber-700
         ${entry.status === 'discarded' ? 'opacity-50 hover:opacity-100' : ''}
         ${entry.status === 'approved' ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/30 dark:bg-emerald-950/10' : 'border-border'}`}
       onClick={onPreview}
     >
-      <button onClick={(e) => { e.stopPropagation(); cycleStatus(); }} className="mt-1 flex-shrink-0" title={statusConfig.label}>
-        <div className={`w-3 h-3 rounded-full ${statusConfig.dotClass} ring-2 ring-offset-1 ring-offset-background ring-current/20 transition-all group-hover:scale-125`} />
-      </button>
+      {/* Status dropdown — stops propagation so it doesn't open the preview */}
+      <div className="mt-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <StatusDropdown
+          currentStatus={entry.status}
+          onChange={(status) => onStatusChange(entry.id, status)}
+          size="sm"
+        />
+      </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -456,11 +392,10 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
           </span>
           <h3 className="text-sm font-medium truncate">{entry.title}</h3>
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
           <span>{formatShortDate(entry.publishedAt)}</span>
           {entry.author && <span>· {entry.author}</span>}
           <span>· {entry.wordCount.toLocaleString('es-AR')} palabras</span>
-          {entry.commentCount > 0 && <span>· {entry.commentCount} comentarios</span>}
         </div>
         {labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
@@ -470,9 +405,23 @@ function EntryRow({ entry, onPreview, onStatusChange }: {
         )}
       </div>
 
+      {/* Issue badges — specific icons and colors */}
       {issues.length > 0 && (
-        <div className="flex-shrink-0 mt-1" title={issues.map(i => i.message).join('\n')}>
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <div className="flex-shrink-0 mt-0.5 flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+          {issues.slice(0, 3).map((issue, i) => {
+            const issueIcon = ISSUE_ICONS[issue.type] || ISSUE_ICONS.no_title;
+            return (
+              <div key={i} className="flex items-center gap-1" title={issue.message}>
+                <span className={`${issueIcon.color}`}>{issueIcon.icon}</span>
+                {issue.count && issue.count > 1 && (
+                  <span className="text-[10px] font-semibold text-muted-foreground">{issue.count}</span>
+                )}
+              </div>
+            );
+          })}
+          {issues.length > 3 && (
+            <span className="text-[10px] text-muted-foreground">+{issues.length - 3}</span>
+          )}
         </div>
       )}
     </div>
@@ -519,7 +468,6 @@ function EntryList() {
   }, [filters.type, filters.status, filters.label, filters.search, filters.sortBy, filters.sortOrder, filters.page, toast]);
 
   const refreshEntries = () => {
-    // Re-trigger effect by toggling a dummy value isn't possible, so we manually fetch
     const f = useAppStore.getState().filters;
     const params = new URLSearchParams();
     if (f.type) params.set('type', f.type);
@@ -540,7 +488,6 @@ function EntryList() {
     try {
       await fetch(`/api/entries/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       refreshEntries();
-      // Also refresh stats
       fetch('/api/stats').then(r => r.json()).then(d => useAppStore.getState().setStats(d)).catch(() => {});
     } catch {
       toast({ title: 'Error al cambiar estado', variant: 'destructive' });
@@ -565,12 +512,13 @@ function EntryList() {
 
   return (
     <div className="flex flex-col">
-      <div className="px-3 py-2 text-xs text-muted-foreground border-b flex items-center justify-between">
+      <div className="px-3 py-2 text-xs text-muted-foreground border-b flex items-center justify-between bg-background">
         <span>{total} {total === 1 ? 'resultado' : 'resultados'}</span>
         {totalPages > 1 && <span>Página {filters.page} de {totalPages}</span>}
       </div>
 
-      <ScrollArea className="max-h-[calc(100vh-380px)] min-h-0">
+      {/* Scrollable entry list */}
+      <ScrollArea className="flex-1" style={{ maxHeight: 'calc(100vh - 380px)' }}>
         <div className="p-2 space-y-1">
           {entries.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">No se encontraron entradas con los filtros actuales</div>
@@ -582,11 +530,30 @@ function EntryList() {
         </div>
       </ScrollArea>
 
+      {/* Pagination — OUTSIDE the scroll area, with its own background and z-index */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 py-2 border-t">
-          <Button variant="outline" size="sm" className="h-8 text-xs" disabled={filters.page <= 1} onClick={() => setFilter('page', filters.page - 1)}>Anterior</Button>
-          <span className="text-xs text-muted-foreground px-2">{filters.page} / {totalPages}</span>
-          <Button variant="outline" size="sm" className="h-8 text-xs" disabled={filters.page >= totalPages} onClick={() => setFilter('page', filters.page + 1)}>Siguiente</Button>
+        <div className="flex items-center justify-center gap-2 py-3 px-3 border-t bg-background relative z-10">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={filters.page <= 1}
+            onClick={(e) => { e.stopPropagation(); setFilter('page', filters.page - 1); }}
+          >
+            ← Anterior
+          </Button>
+          <span className="text-xs text-muted-foreground px-2 min-w-[60px] text-center">
+            {filters.page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={filters.page >= totalPages}
+            onClick={(e) => { e.stopPropagation(); setFilter('page', filters.page + 1); }}
+          >
+            Siguiente →
+          </Button>
         </div>
       )}
     </div>
@@ -598,12 +565,12 @@ function EntryList() {
 function PreviewPanel() {
   const { selectedEntry, isPreviewOpen, setPreviewOpen, setSelectedEntry } = useAppStore();
   const { toast } = useToast();
+  const [showSource, setShowSource] = React.useState(false);
 
   if (!selectedEntry) return null;
 
   const entry = selectedEntry as unknown as FullEntry;
   const typeConfig = TYPE_CONFIG[entry.entryType] || TYPE_CONFIG.POST;
-  const statusConfig = STATUS_CONFIG[entry.status] || STATUS_CONFIG.pending;
   const labels: string[] = JSON.parse(entry.labels || '[]');
   const issues: { type: string; message: string; count?: number }[] = JSON.parse(entry.issues || '[]');
 
@@ -611,7 +578,6 @@ function PreviewPanel() {
     try {
       await fetch(`/api/entries/${entry.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       setSelectedEntry({ ...entry, status });
-      // Refresh list + stats
       fetch('/api/stats').then(r => r.json()).then(d => useAppStore.getState().setStats(d)).catch(() => {});
     } catch {
       toast({ title: 'Error al cambiar estado', variant: 'destructive' });
@@ -620,14 +586,12 @@ function PreviewPanel() {
 
   return (
     <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) { setPreviewOpen(false); setSelectedEntry(null); } }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+      <DialogContent key={entry.id} className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+        {/* Header — flex-shrink-0, never overflows */}
         <div className="p-5 pb-3 space-y-3 flex-shrink-0">
           <DialogHeader>
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${typeConfig.color}`}>{typeConfig.icon} {typeConfig.label}</span>
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
-                <div className={`w-2 h-2 rounded-full ${statusConfig.dotClass}`} /> {statusConfig.label}
-              </div>
               {labels.map(l => (<Badge key={l} variant="secondary" className="text-[10px] px-1.5 py-0">{l}</Badge>))}
             </div>
             <DialogTitle className="text-lg font-semibold leading-tight">{entry.title}</DialogTitle>
@@ -637,7 +601,6 @@ function PreviewPanel() {
             <span>{formatLongDate(entry.publishedAt)}</span>
             {entry.author && <span>· {entry.author}</span>}
             <span>· {entry.wordCount.toLocaleString('es-AR')} palabras</span>
-            {entry.commentCount > 0 && <span>· {entry.commentCount} comentarios</span>}
             {entry.originalUrl && (
               <a href={entry.originalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-amber-600 hover:underline">
                 <ExternalLink className="h-3 w-3" /> Ver original
@@ -647,34 +610,67 @@ function PreviewPanel() {
 
           {issues.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {issues.map((issue, i) => (
-                <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
-                  <AlertTriangle className="h-3 w-3 flex-shrink-0" /> {issue.message}
-                  {issue.count && issue.count > 1 && <span className="font-semibold">({issue.count})</span>}
-                </div>
-              ))}
+              {issues.map((issue, i) => {
+                const issueIcon = ISSUE_ICONS[issue.type];
+                return (
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
+                    {issueIcon?.icon || <AlertTriangle className="h-3 w-3 flex-shrink-0" />}
+                    {issue.message}
+                    {issue.count && issue.count > 1 && <span className="font-semibold">({issue.count})</span>}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
         <Separator />
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div
-            className="p-5 prose prose-sm dark:prose-invert max-w-none prose-img:max-w-full prose-img:h-auto prose-a:text-amber-600 prose-headings:font-semibold"
-            dangerouslySetInnerHTML={{ __html: entry.content }}
-          />
-        </ScrollArea>
+        {/* Content area — takes remaining space, scrollable */}
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          {/* Toggle button — positioned absolutely over the content */}
+          <div className="absolute top-2 right-2 z-10">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 bg-background/90 backdrop-blur border-border/50 shadow-sm"
+              onClick={() => setShowSource(!showSource)}
+            >
+              {showSource ? <><Eye className="h-3 w-3" /> Vista previa</> : <><Code2 className="h-3 w-3" /> Código fuente</>}
+            </Button>
+          </div>
+
+          <ScrollArea className="h-full">
+            {showSource ? (
+              <pre className="p-5 pt-10 text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed">
+                {entry.content}
+              </pre>
+            ) : (
+              <div
+                className="p-5 pt-10 prose prose-sm dark:prose-invert max-w-none
+                  prose-img:max-w-full prose-img:h-auto
+                  prose-a:text-amber-600 prose-headings:font-semibold
+                  [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:overflow-x-auto
+                  [&_code]:break-all [&_code]:word-break-break-all
+                  [&_img]:break-inside-avoid
+                  [&_*]:overflow-wrap-break-word
+                  [&_*]:word-break-break-word"
+                dangerouslySetInnerHTML={{ __html: entry.content }}
+              />
+            )}
+          </ScrollArea>
+        </div>
 
         <Separator />
 
-        <div className="p-4 flex items-center gap-2 flex-wrap flex-shrink-0">
-          <span className="text-xs text-muted-foreground mr-1">Marcar como:</span>
-          {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-            <Button key={key} variant={entry.status === key ? 'default' : 'outline'} size="sm" className="h-8 text-xs gap-1" onClick={() => handleStatusChange(key)}>
-              {config.icon} {config.label}
-            </Button>
-          ))}
+        {/* Footer — flex-shrink-0, always visible, with background */}
+        <div className="p-4 flex items-center gap-3 flex-shrink-0 bg-background relative z-10">
+          <span className="text-xs text-muted-foreground flex-shrink-0">Estado:</span>
+          <StatusDropdown
+            currentStatus={entry.status}
+            onChange={handleStatusChange}
+            size="default"
+          />
         </div>
       </DialogContent>
     </Dialog>
@@ -736,10 +732,47 @@ function ExportButtons() {
   );
 }
 
+// ── Bulk Actions ───────────────────────────────────────────────────────────
+
+function BulkActions({ onDone }: { onDone: () => void }) {
+  const { toast } = useToast();
+
+  const handleBulkStatus = async (status: string) => {
+    try {
+      const res = await fetch('/api/entries', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: 'ALL_CURRENT_FILTERS', status }),
+      });
+      const data = await res.json();
+      toast({ title: `${data.updated || 'Todas las'} entradas marcadas como "${STATUS_CONFIG[status]?.label || status}"` });
+      onDone();
+    } catch {
+      toast({ title: 'Error en acción masiva', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Select onValueChange={(v) => handleBulkStatus(v)}>
+        <SelectTrigger className="h-8 text-xs gap-1">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          <SelectValue placeholder="Acción masiva..." />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="approved">Aprobar todos (posts/páginas)</SelectItem>
+          <SelectItem value="discarded">Descartar todos</SelectItem>
+          <SelectItem value="pending">Marcar todos como pendiente</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 // ── Dashboard View ─────────────────────────────────────────────────────────
 
 function DashboardView() {
-  const { stats, setStats, resetAll, uploadResult } = useAppStore();
+  const { stats, setStats, resetAll, uploadResult, filters } = useAppStore();
   const { toast } = useToast();
 
   const fetchStats = useCallback(async () => {
@@ -754,6 +787,14 @@ function DashboardView() {
   }, [setStats, resetAll, toast]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // Default: exclude comments on first load
+  useEffect(() => {
+    if (stats && stats.comments > 0 && !filters.type) {
+      // Don't auto-filter if user already set a filter
+      // Just show the counts so user can decide
+    }
+  }, [stats, filters.type]);
 
   const handleReset = async () => {
     try {
@@ -775,7 +816,7 @@ function DashboardView() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <ExportButtons />
-            <BulkApproveButton onDone={fetchStats} />
+            <BulkActions onDone={fetchStats} />
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-destructive hover:text-destructive">
@@ -803,7 +844,7 @@ function DashboardView() {
         <EntryList />
       </main>
 
-      <footer className="border-t py-3 mt-auto">
+      <footer className="border-t py-3 mt-auto bg-background">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between text-xs text-muted-foreground">
           <span>Curador — Herramienta de migración desde Blogger</span>
           {stats && <span>{stats.totalWords.toLocaleString('es-AR')} palabras totales</span>}
@@ -812,47 +853,6 @@ function DashboardView() {
 
       <PreviewPanel />
     </div>
-  );
-}
-
-// ── Bulk Approve ───────────────────────────────────────────────────────────
-
-function BulkApproveButton({ onDone }: { onDone: () => void }) {
-  const { toast } = useToast();
-
-  const handleApproveAll = async () => {
-    try {
-      const res = await fetch('/api/entries', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: 'ALL_CURRENT_FILTERS', status: 'approved' }),
-      });
-      const data = await res.json();
-      toast({ title: `${data.updated || 'Todas las'} entradas aprobadas` });
-      onDone();
-    } catch {
-      toast({ title: 'Error en acción masiva', variant: 'destructive' });
-    }
-  };
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Aprobar todos
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Aprobar todos los posts</AlertDialogTitle>
-          <AlertDialogDescription>Esto va a cambiar el estado de TODAS las entradas a "Aprobado". ¿Estás seguro?</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleApproveAll}>Sí, aprobar todos</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 
