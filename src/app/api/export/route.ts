@@ -23,6 +23,15 @@ export async function GET(request: NextRequest) {
   const entries = await db.blogEntry.findMany({
     where,
     orderBy: { publishedAt: 'desc' },
+    select: {
+      title: true,
+      content: true,
+      publishedAt: true,
+      author: true,
+      originalUrl: true,
+      labels: true,
+      status: true,
+    },
   });
 
   if (entries.length === 0) {
