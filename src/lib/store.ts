@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type ViewMode = 'upload' | 'dashboard';
 export type EntryType = 'POST' | 'PAGE' | 'DRAFT' | 'COMMENT' | '';
-export type EntryStatus = 'pending' | 'approved' | 'discarded' | 'needs_editing' | '';
+export type EntryStatus = 'pending' | 'approved' | 'discarded' | 'needs_editing' | 'published' | '';
 export type SortField = 'publishedAt' | 'title' | 'wordCount' | 'commentCount';
 export type SortOrder = 'asc' | 'desc';
 
@@ -16,6 +16,7 @@ export interface Stats {
   approved: number;
   pending: number;
   discarded: number;
+  published: number;
   needsEditing: number;
   withIssues: number;
   totalWords: number;
@@ -175,17 +176,19 @@ export const useAppStore = create<AppState>()(
     {
       name: 'curador-filters',
       storage: createJSONStorage(() => localStorage),
-      // Persist filters and published tracking — everything else is ephemeral
+      // Persist filters, view, and published tracking — everything else is ephemeral
       partialize: (state) => ({
         filters: state.filters,
+        view: state.view,
         publishedEntries: state.publishedEntries,
       }),
-      // On hydration, use stored filters/published but keep everything else as initial
+      // On hydration, use stored filters/view/published but keep everything else as initial
       merge: (persisted, current) => {
         const p = persisted as Partial<AppState>;
         return {
           ...current,
           ...(p.filters ? { filters: p.filters } : {}),
+          ...(p.view ? { view: p.view } : {}),
           ...(p.publishedEntries ? { publishedEntries: p.publishedEntries } : {}),
         };
       },

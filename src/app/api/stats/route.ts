@@ -12,6 +12,7 @@ export async function GET() {
   const approved = await db.blogEntry.count({ where: { status: 'approved' } });
   const pending = await db.blogEntry.count({ where: { status: 'pending' } });
   const discarded = await db.blogEntry.count({ where: { status: 'discarded' } });
+  const published = await db.blogEntry.count({ where: { status: 'published' } });
   const needsEditing = await db.blogEntry.count({ where: { status: 'needs_editing' } });
 
   // Only count issues for non-comments (posts, pages, drafts)
@@ -72,6 +73,7 @@ export async function GET() {
     approved,
     pending,
     discarded,
+    published,
     needsEditing,
     withIssues,
     totalWords,

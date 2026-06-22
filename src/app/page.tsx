@@ -86,6 +86,7 @@ const STATUS_CONFIG: Record<string, { label: string; dotClass: string }> = {
   approved: { label: 'Aprobado', dotClass: 'bg-emerald-500' },
   discarded: { label: 'Descartado', dotClass: 'bg-red-500' },
   needs_editing: { label: 'Necesita edición', dotClass: 'bg-blue-500' },
+  published: { label: 'Publicado', dotClass: 'bg-purple-500' },
 };
 
 const ISSUE_CONFIG: Record<string, { icon: React.ReactNode; color: string; shortLabel: string }> = {
@@ -258,7 +259,7 @@ function StatsBar() {
   const breakdown = stats.issueBreakdown;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
       {[
         { label: 'Posts', value: stats.posts },
         { label: 'Páginas', value: stats.pages },
@@ -266,6 +267,7 @@ function StatsBar() {
         { label: 'Aprobados', value: stats.approved },
         { label: 'Pendientes', value: stats.pending },
         { label: 'Descartados', value: stats.discarded },
+        { label: 'Publicados', value: stats.published || 0 },
       ].map((item) => (
         <div key={item.label} className="rounded-lg p-2.5 text-center bg-muted/30 border border-border/50">
           <div className="text-lg font-bold">{item.value.toLocaleString('es-AR')}</div>
@@ -337,6 +339,7 @@ function FilterBar() {
           <SelectItem value="approved">Aprobado</SelectItem>
           <SelectItem value="discarded">Descartado</SelectItem>
           <SelectItem value="needs_editing">Necesita edición</SelectItem>
+          <SelectItem value="published">Publicado</SelectItem>
         </SelectContent>
       </Select>
 
@@ -902,6 +905,7 @@ const EXPORT_STATUS_OPTIONS = [
   { value: 'approved+needs_editing', label: 'Aprobados + Edición' },
   { value: 'approved', label: 'Aprobados' },
   { value: 'needs_editing', label: 'Necesitan Edición' },
+  { value: 'published', label: 'Publicados' },
   { value: 'pending', label: 'Pendientes' },
   { value: 'discarded', label: 'Descartados' },
 ] as const;
@@ -1057,6 +1061,7 @@ function DashboardView() {
               <SelectContent>
                 <SelectItem value="approved">Aprobar {currentFilterLabel}</SelectItem>
                 <SelectItem value="pending">Pendiente {currentFilterLabel}</SelectItem>
+                <SelectItem value="published">Marcar Publicado {currentFilterLabel}</SelectItem>
                 <SelectItem value="discarded">Descartar {currentFilterLabel}</SelectItem>
               </SelectContent>
             </Select>

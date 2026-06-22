@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Se requiere status' }, { status: 400 });
     }
 
-    const validStatuses = ['pending', 'approved', 'discarded', 'needs_editing'];
+    const validStatuses = ['pending', 'approved', 'discarded', 'needs_editing', 'published'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
     }
