@@ -18,7 +18,7 @@ model BlogEntry {
   author       String?
   labels       String   @default("[]") // JSON array of label strings
   originalUrl  String?  // <link rel="alternate"> href
-  status       String   @default("pending") // pending | approved | discarded | needs_editing
+  status       String   @default("pending") // pending | approved | discarded | needs_editing | published
   issues       String   @default("[]") // JSON array of issue objects {type, message}
   wordCount      Int      @default(0)
   commentCount   Int      @default(0)
